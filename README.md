@@ -20,8 +20,8 @@ See below!!
 
 ## Your terminal installation instructions
 
-* `git clone https://github.com/mumblebaj/MMM-NOAA3.git` into the `~/MagicMirror/modules` directory.
-*  `cd MMM-NOAA3`
+* `git clone https://github.com/bhaules/MMM-NOAA3-BOM.git` into the `~/MagicMirror/modules` directory.
+*  `cd MMM-NOAA3-BOM`
 *  `npm install`
 
 ## Get your free API key here [WEATHER, You must also get an AirAPI Key--- see below]
