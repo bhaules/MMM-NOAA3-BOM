@@ -7,6 +7,7 @@ var NodeHelper = require("node_helper");
 var moment = require('moment');
 //var request = require('request');
 const fs = require('fs');
+const http = require('http');
 
 module.exports = NodeHelper.create({
 
@@ -24,11 +25,12 @@ module.exports = NodeHelper.create({
         weatherunlocked: 'wu',
         accuweather: 'aw',
         msn: 'ms',
+        bom: 'bom',
     },
 
     start: function () {
         var self = this;
-        setTimeout(function () {});
+        setTimeout(function () { });
     },
 
     socketNotificationReceived: function (notification, payload) {
@@ -41,7 +43,8 @@ module.exports = NodeHelper.create({
             this.getData();
             this.getSRSS();
             this.getAIR();
-            // this.getMoonData();
+            this.getMoonData();
+            this.getMoonData();
             // if (this.providers[config.provider] == 'ds') {
             //     console.log(this.providers[config.provider]);
             //     this.getALERT()
@@ -57,6 +60,7 @@ module.exports = NodeHelper.create({
             self.getData();
             self.getSRSS();
             self.getAIR();
+            self.getAIR();
             // self.getALERT();
             // if (self.providers[config.provider] == 'ds') {
             //     self.getALERT()
@@ -69,59 +73,66 @@ module.exports = NodeHelper.create({
         var date = moment().unix();
 
         const url = "http://api.farmsense.net/v1/moonphases/?d=" + date;
-        const options = {
-            method: 'GET'
-        }
-        try {
-            const response = await fetch(url, options);
-            if (!response.ok) {
-                throw new Error('getMoonData response was not ok');
-            }
-            var moons = await response.json();
-            var moon = moons[0]['Phase'];
-            self.sendSocketNotification("MOON_RESULT", moon ? moon : 'NO_MOON_DATA');
-        } catch (error) {
+
+        http.get(url, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        var moons = JSON.parse(data);
+                        var moon = moons[0]['Phase'];
+                        self.sendSocketNotification("MOON_RESULT", moon ? moon : 'NO_MOON_DATA');
+                    } else {
+                        throw new Error('getMoonData response was not ok');
+                    }
+                } catch (e) {
+                    console.error("getMoonData Error: " + e.message);
+                }
+            });
+        }).on('error', (error) => {
             console.error("getMoonData Error: " + error.message);
-            return;
-        }
+        });
     },
 
     getData: async function () {
         try {
-            
+
             const response = await this.provider.fetchWeatherData();
-            
+
             this.sendSocketNotification("WEATHER_RESULT", response || 'NO_WEATHER_RESULT');
         } catch (error) {
             console.error("Error fetching weather data:" + error);
-			
+
             this.sendSocketNotification("WEATHER_RESULT", 'NO_WEATHER_RESULT');
         }
     },
 
     getSRSS: async function () {
         try {
-			const response = await this.provider.fetchSunriseSunset();
-			
+            const response = await this.provider.fetchSunriseSunset();
+
             this.sendSocketNotification("SRSS_RESULT", response || 'NO_SRSS_DATA');
-		} catch (error) {
-			console.error("Error fetching SRSS data:" + error);
-			
-			this.sendSocketNotification("SRSS_RESULT: ", 'NO_SRSS_DATA');
+        } catch (error) {
+            console.error("Error fetching SRSS data:" + error);
+
+            this.sendSocketNotification("SRSS_RESULT: ", 'NO_SRSS_DATA');
         }
     },
 
     getAIR: async function () {
         try {
-			const response = await this.provider.fetchAirQuality();
-			
+            const response = await this.provider.fetchAirQuality();
+
             this.sendSocketNotification("AIR_RESULT", response || 'NO_AIR_DATA');
         } catch (error) {
-			console.error("Error fetching Air Data:", error);
-			
-			this.sendSocketNotification("AIR_RESULT", 'NO_AIR_DATA');
-		}
+            console.error("Error fetching Air Data:", error);
+
+            this.sendSocketNotification("AIR_RESULT", 'NO_AIR_DATA');
+        }
     },
+
+
 
     // getALERT: function () {
     //     var self = this;

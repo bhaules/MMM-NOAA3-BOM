@@ -34,6 +34,8 @@ Remember not all providers are created equal... Some are a bit better than other
 * accuweather ~ https://developer.accuweather.com/
 * openweather ~ https://openweathermap.org/api 
 * msn ~ http://weather.service.msn.com
+* bom ~ Australian Bureau of Meteorology (no API key needed, uses a 6-character location geohash)
+* openuv ~ https://www.openuv.io/ (Required for the UV Index forecast section)
  
 ##    YOU WILL NEED YOUR LATITUDE AND LONGITUDE
  You can find them right here: 
@@ -55,9 +57,9 @@ Will default to EN if NO translation file is found.
 * accuweather 
 * openweather
 * msn
+* bom
     
 * For all
-     ```
 	    {
             module: 'MMM-NOAA3',
             position: 'top_right',
@@ -66,6 +68,7 @@ Will default to EN if NO translation file is found.
                 provider: "openweather",
                 apiKey: "your api key", // msn does not require an apiKey
                 airKey: "c097c9cb-2a72-4e43-9868-907196674033",
+                UVIndexAccessToken: "YOUR_OPENUV_KEY", // Required for UV section
                 units: "metric",
                 css: "NOAA4",
                 updateInterval: 1800000,
@@ -96,16 +99,20 @@ zip: '329671', //MUST have valid zip Code
             zip: "11111" //MUST have valid zip Code
 	}
     },
-	
-## ISSUES
 
-  While we tried to make NOAA everything a weather module can be, not everyone will give out weather warnings with the free api key.
-  Thanks to Wunderground going belly up on the users........ soooooo we suggest that you use this module for warnings->	
-  
-  https://github.com/LukeSkywalker92/MMM-DWD-WarnWeather
-  
-  This is a weather warning module that will fit the bill nicely :)
-  
+* Australian BOM Example:
+	```javascript
+	 {
+        module: 'MMM-NOAA3',
+        position: 'top_left',
+            config: {
+            provider: "bom",   
+            geohash: "qd66d9", // 6-character geohash for your Australian location
+            css: "NOAA3"
+	}
+    },
+	```
+	
 ## UpdateInterval
 
 Via the config you can change this..... currently it's set to 30 minutes like this ->  updateInterval: 30 * 60 * 1000
@@ -116,12 +123,13 @@ You can add this to your config.js to change it if you'd like ... like this ->
         module: 'MMM-NOAA3',
         config: {
 		    provider: "msn",   
-		    airKey: "YOUR API KEY", 
+		    airKey: "YOUR API KEY",
+		    UVIndexAccessToken: "YOUR OPENUV API KEY",
 	        css: "NOAA4",   // THIS MUST CONTAIN A CSS STYLE NAME
 		    updateInterval: 15 * 60 * 1000, // every 15 minutes or whatever you choose but make sure you have an api that will allow that many calls per day!!! 
 		    userlat: "xxxx", //MUST HAVE BOTH
 	        userlon: "xxxx"  //MUST HAVE BOTH 
-	}
+	    }
     },
 	
 ## CSS STYLES
