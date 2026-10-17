@@ -43,8 +43,12 @@ const provider = {
         "light_showers": "rain",
         "showers": "rain",
         "heavy_showers": "rain",
+        "light_shower": "rain",
+        "shower": "rain",
+        "heavy_shower": "rain",
         "storm": "tstorms",
-        "wind": "unknown", // Fallback for wind
+        "wind": "fog", // Fallback for wind
+        "windy": "fog",
     },
 
     addModuleConfiguration: function (moduleConfig) {
@@ -69,15 +73,20 @@ const provider = {
 
         const obsUrl = `https://api.weather.bom.gov.au/v1/locations/${this.geohash}/observations`;
         const forecastUrl = `https://api.weather.bom.gov.au/v1/locations/${this.geohash}/forecasts/daily`;
+        const hourlyUrl = `https://api.weather.bom.gov.au/v1/locations/${this.geohash}/forecasts/hourly`;
 
         try {
-            // Fetch Observations
-            const obsData = await httpsGet(obsUrl);
+            // Fetch Observations, Daily Forecast, and Hourly Forecast in parallel
+            const [obsData, forecastData, hourlyData] = await Promise.all([
+                httpsGet(obsUrl),
+                httpsGet(forecastUrl),
+                httpsGet(hourlyUrl).catch(err => {
+                    console.log("BOM Hourly Data Warning:", err.message);
+                    return null;
+                })
+            ]);
 
-            // Fetch Forecasts
-            const forecastData = await httpsGet(forecastUrl);
-
-            return this.parseWeatherData(obsData, forecastData);
+            return this.parseWeatherData(obsData, forecastData, hourlyData);
         } catch (error) {
             console.log("BOM Weather Data Error:", error.message);
             return null;
@@ -128,22 +137,32 @@ const provider = {
         }
     },
 
-    parseWeatherData: function (obsJson, forecastJson) {
+    parseWeatherData: function (obsJson, forecastJson, hourlyJson) {
         const obs = obsJson.data;
         const forecasts = forecastJson.data;
 
+        // Ensure we explicitly process forecasts for today and future
+        const todayStr = moment().format('YYYY-MM-DD');
+        const validForecasts = forecasts.filter(day => {
+            // BOM returns UTC dates like 2026-02-26T16:00:00Z for Perth which equals 00:00 AWST on the 27th.
+            // But the text "2026-02-26" perfectly aligns with the forecast day.
+            // By extracting just the UTC timestamp string (e.g. 2026-02-26), we get the correct forecast date representation.
+            const dayStr = moment.utc(day.date).format('YYYY-MM-DD');
+            return dayStr >= todayStr;
+        });
+
         // Current conditions
         const current = {
-            ss: moment(forecasts[0] && forecasts[0].astronomical ? forecasts[0].astronomical.sunset_time : undefined).format('HH'),
-            weather: forecasts[0] ? forecasts[0].short_text.replace('.', '') : "Unknown",
-            weather_f: forecasts[0] ? forecasts[0].extended_text : "Unknown",
+            ss: moment(validForecasts[0] && validForecasts[0].astronomical ? validForecasts[0].astronomical.sunset_time : undefined).format('HH'),
+            weather: validForecasts[0] ? validForecasts[0].short_text.replace('.', '') : "Unknown",
+            weather_f: validForecasts[0] ? validForecasts[0].extended_text : "Unknown",
             temp_c: obs.temp ? Math.round(obs.temp) : 0,
             temp_f: obs.temp ? Math.round(obs.temp * 9 / 5 + 32) : 0,
-            icon: forecasts[0] && forecasts[0].icon_descriptor ? (this.imageArray[forecasts[0].icon_descriptor] || "clear") : "clear",
+            icon: validForecasts[0] && validForecasts[0].icon_descriptor ? (this.imageArray[validForecasts[0].icon_descriptor] || "clear") : "clear",
             humidity: obs.humidity ? obs.humidity + "%" : "0%", // Module expects a string with %
             pressure_mb: 1013, // BOM observation API doesn't return pressure by default
             pressure_in: 29.92,
-            UV: forecasts[0] && forecasts[0].uv && forecasts[0].uv.max_index ? forecasts[0].uv.max_index : 0,
+            UV: validForecasts[0] && validForecasts[0].uv && validForecasts[0].uv.max_index ? validForecasts[0].uv.max_index : 0,
             wind_mph: obs.wind && obs.wind.speed_kilometre ? Math.round(obs.wind.speed_kilometre * 0.621371) : 0,
             wind_kph: obs.wind && obs.wind.speed_kilometre ? Math.round(obs.wind.speed_kilometre) : 0,
             visibility_mi: 10,  // Not provided by BOM observation API by default
@@ -151,23 +170,41 @@ const provider = {
         };
 
         // Forecast (next 4 days as expected by module)
-        const forecastMap = forecasts.slice(0, 4).map(day => {
+        const forecastMap = validForecasts.slice(0, 4).map(day => {
+            // BOM API sometimes omits temp_min for the current day. Fall back to now.temp_now or something sensible
+            // The temp_min might be null if the minimum has already passed for the day
+            let tMinC = day.temp_min !== null ? day.temp_min : (day.now && day.now.temp_now !== null ? day.now.temp_now : 0);
+            let tMaxC = day.temp_max !== null ? day.temp_max : 0;
             return {
                 date: { weekday_short: moment.utc(day.date).format('ddd') },
                 high: {
-                    fahrenheit: Math.round(day.temp_max * 9 / 5 + 32),
-                    celsius: Math.round(day.temp_max)
+                    fahrenheit: Math.round(tMaxC * 9 / 5 + 32),
+                    celsius: Math.round(tMaxC)
                 },
                 low: {
-                    fahrenheit: Math.round(day.temp_min * 9 / 5 + 32),
-                    celsius: Math.round(day.temp_min)
+                    fahrenheit: Math.round(tMinC * 9 / 5 + 32),
+                    celsius: Math.round(tMinC)
                 },
                 desc: day.short_text,
                 icon: this.imageArray[day.icon_descriptor] || "unknown"
             };
         });
 
-        return { current: current, forecast: forecastMap };
+        // Hourly UV Forecast (next 4 upcoming hours)
+        let uvForecastMap = [];
+        if (hourlyJson && hourlyJson.data && Array.isArray(hourlyJson.data)) {
+            const now = moment();
+            const upcoming = hourlyJson.data.filter(h => moment(h.time).isAfter(now.clone().subtract(30, 'minutes')));
+            uvForecastMap = upcoming.slice(0, 4).map(h => {
+                return {
+                    time: h.time,
+                    hour: moment(h.time).format(this.config.timeFormat == 12 ? "h:mm" : "H:mm"),
+                    uv: typeof h.uv === 'number' ? h.uv : 0
+                };
+            });
+        }
+
+        return { current: current, forecast: forecastMap, uvForecast: uvForecastMap };
     }
 };
 

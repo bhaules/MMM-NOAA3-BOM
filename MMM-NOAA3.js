@@ -23,6 +23,8 @@ Module.register("MMM-NOAA3", {
         userlat: "",
         userlon: "",
         UVIndexAccessToken: "", // OpenUV API Key
+        showUVForecast: true,
+        uvForecastTitle: "4 Hour UV Forecast",
 
         langFile: {
             "en": "en-US",
@@ -230,9 +232,24 @@ Module.register("MMM-NOAA3", {
         this.sendNotification("WEATHER", { icon, sunset });
         this.loaded = true;
 
-        if (this.config.UVIndexAccessToken) {
+        if (this.current && this.current.uvForecast && this.current.uvForecast.length > 0) {
+            this.processProviderUVForecast(this.current.uvForecast);
+        } else if (this.config.UVIndexAccessToken) {
             this.fetchUVIndex();
         }
+    },
+
+    processProviderUVForecast: function (uvList) {
+        if (!uvList || uvList.length === 0) return;
+
+        this.uvData = {
+            forecast: uvList.slice(0, 4).map(item => ({
+                uv: typeof item.uv === "number" ? item.uv : 0,
+                time: item.time,
+                hour: item.hour || (item.time ? moment(item.time).format(config.timeFormat == 12 ? "h:mm" : "H:mm") : "")
+            }))
+        };
+        console.log("Provider UV Data processed:", this.uvData);
     },
 
     fetchUVIndex: function () {
@@ -272,32 +289,32 @@ Module.register("MMM-NOAA3", {
             return;
         }
 
-        const currentSimpleDateTime = new Date().toISOString().slice(0, 13);
-        const mappedResults = data.result.map(it => {
-            return {
-                uv: Math.round(it.uv * 100) / 100,
-                simpleDateTime: it.uv_time.slice(0, 13)
-            };
-        });
+        const now = new Date();
+        const forecastList = [];
 
-        const relevantEvents = mappedResults.filter(it => it.simpleDateTime >= currentSimpleDateTime);
-        this.uvData = { current: undefined, forecast: [] };
+        for (let i = 1; i <= 4; i++) {
+            const targetTime = new Date(now.getTime() + i * 3600 * 1000);
+            const targetISO = targetTime.toISOString().slice(0, 13);
+            const match = data.result.find(it => it.uv_time && it.uv_time.slice(0, 13) === targetISO);
 
-        const numberOfUVIndices = relevantEvents.length;
-        if (numberOfUVIndices === 0) {
-            this.uvData.forecast = Array(5).fill(undefined);
-        } else if (numberOfUVIndices > 0 && numberOfUVIndices < 5) {
-            this.uvData.current = relevantEvents[0];
-            this.uvData.forecast = relevantEvents.slice(1);
-            while (this.uvData.forecast.length < 5) {
-                this.uvData.forecast.push(undefined);
+            const hourLabel = moment(targetTime).format(config.timeFormat == 12 ? "h:mm" : "H:mm");
+            if (match) {
+                forecastList.push({
+                    uv: Math.round(match.uv * 100) / 100,
+                    hour: hourLabel,
+                    time: match.uv_time
+                });
+            } else {
+                forecastList.push({
+                    uv: 0,
+                    hour: hourLabel,
+                    time: targetTime.toISOString()
+                });
             }
-        } else {
-            this.uvData.current = relevantEvents[0];
-            this.uvData.forecast = relevantEvents.slice(1, 6);
         }
 
-        console.log("UV Data processed:", this.uvData);
+        this.uvData = { forecast: forecastList };
+        console.log("OpenUV Data processed:", this.uvData);
     },
 
     scheduleCarousel: function () {
@@ -549,40 +566,22 @@ Module.register("MMM-NOAA3", {
         }
 
         // --- UV INDEX SECTION ---
-        if (this.config.UVIndexAccessToken && this.uvData) {
+        if (this.config.showUVForecast !== false && this.uvData && this.uvData.forecast && this.uvData.forecast.length > 0) {
 
             var uvTable = document.createElement("table");
             uvTable.classList.add("table");
-            uvTable.setAttribute('style', 'line-height: 20%; margin-top: 10px;');
-
-            var text = "N/A";
-            var color = "";
-            var uvVal = 0;
-
-            if (this.uvData.current) {
-                var uvInfo = this.getUVIndexLevel(this.uvData.current.uv);
-                text = uvInfo.shortName;
-                color = uvInfo.color;
-                uvVal = this.uvData.current.uv;
-            }
+            uvTable.setAttribute('style', 'line-height: normal; margin-top: 10px; width: 100%;');
 
             var FCRowUv = document.createElement("tr");
             var jumpyUv = document.createElement("th");
             jumpyUv.setAttribute("colspan", 4);
             jumpyUv.classList.add("rheading");
-            // Inject the badge and value directly into the header
-            jumpyUv.innerHTML = 'UV Index &nbsp;&nbsp; <span style="background-color:' + color + '; color:#fff; border-radius:4px; padding:2px 6px; font-size:12px; font-weight:bold; vertical-align: middle;">' + text + '</span> <span style="font-size: 14px; vertical-align: middle;">' + uvVal + '</span>';
+            jumpyUv.innerHTML = this.translate(this.config.uvForecastTitle || "4 Hour UV Forecast") || "4 Hour UV Forecast";
             FCRowUv.appendChild(jumpyUv);
             uvTable.appendChild(FCRowUv);
 
-            // Build formatting arrays for the forecast (expanded to 4 columns)
+            // Build formatting arrays for the forecast (4 columns)
             var formatHours = [];
-            for (let i = 1; i <= 4; i++) {
-                var fd = new Date();
-                fd.setHours(fd.getHours() + i);
-                formatHours.push(fd.getHours() + ":00");
-            }
-
             var fcLevels = [];
             var fcColors = [];
             var fcVals = [];
@@ -591,12 +590,27 @@ Module.register("MMM-NOAA3", {
                 let it = this.uvData.forecast[i];
                 if (it) {
                     var inf = this.getUVIndexLevel(it.uv);
+                    var hourDisplay = it.hour;
+                    if (!hourDisplay && it.time) {
+                        hourDisplay = moment(it.time).format(config.timeFormat == 12 ? "h:mm" : "H:mm");
+                    }
+                    if (!hourDisplay) {
+                        var fd = new Date();
+                        fd.setHours(fd.getHours() + (i + 1));
+                        hourDisplay = moment(fd).format(config.timeFormat == 12 ? "h:mm" : "H:mm");
+                    }
+                    formatHours.push(hourDisplay);
                     fcLevels.push(inf.shortName);
                     fcColors.push(inf.color);
                     fcVals.push(it.uv);
                 } else {
-                    fcLevels.push("N/A");
-                    fcColors.push("#333");
+                    var fd = new Date();
+                    fd.setHours(fd.getHours() + (i + 1));
+                    var hourDisplay = moment(fd).format(config.timeFormat == 12 ? "h:mm" : "H:mm");
+                    formatHours.push(hourDisplay);
+                    var zeroInf = this.getUVIndexLevel(0);
+                    fcLevels.push(zeroInf.shortName);
+                    fcColors.push(zeroInf.color);
                     fcVals.push(0);
                 }
             }
@@ -605,7 +619,8 @@ Module.register("MMM-NOAA3", {
             var nextRowUv = document.createElement("tr");
             for (let i = 0; i < 4; i++) {
                 var thT = document.createElement("td");
-                thT.classList.add("xsmall", "bright");
+                thT.classList.add("bright");
+                thT.setAttribute("style", "font-size: 13px; font-weight: 600; padding: 2px 0;");
                 thT.innerHTML = formatHours[i];
                 nextRowUv.appendChild(thT);
             }
@@ -615,7 +630,8 @@ Module.register("MMM-NOAA3", {
             var rowLvlUv = document.createElement("tr");
             for (let i = 0; i < 4; i++) {
                 var tdLvl = document.createElement("td");
-                tdLvl.innerHTML = '<div style="background-color:' + fcColors[i] + '; color:#fff; border-radius:4px; padding:3px 0; font-size:12px; font-weight:bold; margin: 0 4px;">' + fcLevels[i] + '</div>';
+                tdLvl.setAttribute("style", "padding: 2px 1px;");
+                tdLvl.innerHTML = '<div style="background-color:' + fcColors[i] + '; color:#fff; border-radius:4px; padding:3px 0; font-size:13px; font-weight:bold; margin: 0 2px;">' + fcLevels[i] + '</div>';
                 rowLvlUv.appendChild(tdLvl);
             }
             uvTable.appendChild(rowLvlUv);
@@ -624,7 +640,8 @@ Module.register("MMM-NOAA3", {
             var rowValUv = document.createElement("tr");
             for (let i = 0; i < 4; i++) {
                 var tdVal = document.createElement("td");
-                tdVal.classList.add("xsmall", "bright");
+                tdVal.classList.add("bright");
+                tdVal.setAttribute("style", "font-size: 18px; font-weight: bold; line-height: 120%; padding: 2px 0;");
                 tdVal.innerHTML = fcVals[i];
                 rowValUv.appendChild(tdVal);
             }

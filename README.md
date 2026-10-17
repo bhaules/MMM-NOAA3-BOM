@@ -34,8 +34,8 @@ Remember not all providers are created equal... Some are a bit better than other
 * accuweather ~ https://developer.accuweather.com/
 * openweather ~ https://openweathermap.org/api 
 * msn ~ http://weather.service.msn.com
-* bom ~ Australian Bureau of Meteorology (no API key needed, uses a 6-character location geohash)
-* openuv ~ https://www.openuv.io/ (Required for the UV Index forecast section)
+* bom ~ Australian Bureau of Meteorology (no API key needed, uses a 6-character location geohash; includes native hourly UV forecast)
+* openuv ~ https://www.openuv.io/ (Optional UV Index forecast for non-BOM providers)
  
 ##    YOU WILL NEED YOUR LATITUDE AND LONGITUDE
  You can find them right here: 
