@@ -20,9 +20,10 @@ See below!!
 
 ## Your terminal installation instructions
 
-* `git clone https://github.com/bhaules/MMM-NOAA3-BOM.git` into the `~/MagicMirror/modules` directory.
-*  `cd MMM-NOAA3-BOM`
-*  `npm install`
+* In the `~/MagicMirror/modules` directory: `git clone https://github.com/bhaules/MMM-NOAA3-BOM.git MMM-NOAA3`
+  (the folder must be called `MMM-NOAA3`, the same as the module name, or MagicMirror won't find it)
+*  `cd MMM-NOAA3`
+*  `npm install --omit=dev`
 
 ## Get your free API key here [WEATHER, You must also get an AirAPI Key--- see below]
 
@@ -112,6 +113,9 @@ zip: '329671', //MUST have valid zip Code
 	}
     },
 	```
+
+  BOM notes: BOM observations have no pressure or visibility, so this provider shows **Feels like** and today's
+  **Rain** chance in those two columns. The night-time moon phase is calculated locally (no API needed).
 	
 ## UpdateInterval
 

@@ -4,18 +4,27 @@
  * Updated by mumblebaj
  */
 var NodeHelper = require("node_helper");
-var moment = require('moment');
-//var request = require('request');
-const fs = require('fs');
-const http = require('http');
+
+// Moon phase is calculated locally: the old moon API (api.farmsense.net) no longer exists.
+const SYNODIC_MONTH = 29.530588853; // days
+const KNOWN_NEW_MOON = Date.UTC(2000, 0, 6, 18, 14); // 2000-01-06 18:14 UTC
+
+function moonPhaseName(date) {
+    const days = (date.getTime() - KNOWN_NEW_MOON) / 86400000;
+    const age = ((days % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH; // 0 .. 29.53
+    const names = ["New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous",
+        "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"];
+    // 8 equal slices centred on the main phases
+    return names[Math.floor((age / SYNODIC_MONTH) * 8 + 0.5) % 8];
+}
 
 module.exports = NodeHelper.create({
 
     config: {
-        updateInterval: 5 * 1000,
-        initialLoadDelay: 400000
+        updateInterval: 60 * 60 * 1000
     },
     provider: null,
+    updateTimer: null,
     providers: {
         piratesky: 'ds',
         openweather: 'ow',
@@ -28,82 +37,47 @@ module.exports = NodeHelper.create({
         bom: 'bom',
     },
 
-    start: function () {
-        var self = this;
-        setTimeout(function () { });
-    },
-
     socketNotificationReceived: function (notification, payload) {
-        if (notification === "MMM-NOAA3") {
-            //this.sendSocketNotification('MMM-NOAA3');
-            this.path = "modules/MMM-NOAA3/latlon.json";
-            this.provider = this.getProviderFromConfig(payload);
-            this.provider.addModuleConfiguration(payload);
-            this.config = payload;
-            this.getData();
-            this.getSRSS();
-            this.getAIR();
-            this.getMoonData();
-            this.getMoonData();
-            // if (this.providers[config.provider] == 'ds') {
-            //     console.log(this.providers[config.provider]);
-            //     this.getALERT()
-            // };
+        if (notification !== "MMM-NOAA3") {
+            return;
         }
-        this.scheduleUpdate(this.config.updateInterval);
+        // Every browser that shows the mirror sends this on start. Only one update timer may run,
+        // otherwise each page reload adds another timer and the APIs get polled again and again.
+        this.config = payload;
+        this.provider = this.getProviderFromConfig(payload);
+        this.provider.addModuleConfiguration(payload);
+        this.updateAll();
+        this.scheduleUpdate();
     },
 
     scheduleUpdate: function () {
-        var self = this;
-        self.updateInterval = setInterval(() => {
-            console.log('NOAA3 weather updated.. next update in 1 hour');
-            self.getData();
-            self.getSRSS();
-            self.getAIR();
-            self.getAIR();
-            // self.getALERT();
-            // if (self.providers[config.provider] == 'ds') {
-            //     self.getALERT()
-            // };
-        }, self.config.updateInterval);
+        if (this.updateTimer) {
+            clearInterval(this.updateTimer);
+        }
+        const interval = this.config.updateInterval || 60 * 60 * 1000;
+        this.updateTimer = setInterval(() => {
+            console.log("NOAA3 weather updated.. next update in " + Math.round(interval / 60000) + " min");
+            this.updateAll();
+        }, interval);
     },
 
-    getMoonData: async function () {
-        var self = this;
-        var date = moment().unix();
+    updateAll: function () {
+        this.getData();
+        this.getSRSS();
+        this.getAIR();
+        this.getMoonData();
+    },
 
-        const url = "http://api.farmsense.net/v1/moonphases/?d=" + date;
-
-        http.get(url, (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-                try {
-                    if (res.statusCode >= 200 && res.statusCode < 300) {
-                        var moons = JSON.parse(data);
-                        var moon = moons[0]['Phase'];
-                        self.sendSocketNotification("MOON_RESULT", moon ? moon : 'NO_MOON_DATA');
-                    } else {
-                        throw new Error('getMoonData response was not ok');
-                    }
-                } catch (e) {
-                    console.error("getMoonData Error: " + e.message);
-                }
-            });
-        }).on('error', (error) => {
-            console.error("getMoonData Error: " + error.message);
-        });
+    getMoonData: function () {
+        this.sendSocketNotification("MOON_RESULT", moonPhaseName(new Date()));
     },
 
     getData: async function () {
         try {
-
             const response = await this.provider.fetchWeatherData();
-
             this.sendSocketNotification("WEATHER_RESULT", response || 'NO_WEATHER_RESULT');
         } catch (error) {
             console.error("Error fetching weather data:" + error);
-
             this.sendSocketNotification("WEATHER_RESULT", 'NO_WEATHER_RESULT');
         }
     },
@@ -111,41 +85,29 @@ module.exports = NodeHelper.create({
     getSRSS: async function () {
         try {
             const response = await this.provider.fetchSunriseSunset();
-
             this.sendSocketNotification("SRSS_RESULT", response || 'NO_SRSS_DATA');
         } catch (error) {
             console.error("Error fetching SRSS data:" + error);
-
-            this.sendSocketNotification("SRSS_RESULT: ", 'NO_SRSS_DATA');
+            this.sendSocketNotification("SRSS_RESULT", 'NO_SRSS_DATA');
         }
     },
 
     getAIR: async function () {
         try {
             const response = await this.provider.fetchAirQuality();
-
             this.sendSocketNotification("AIR_RESULT", response || 'NO_AIR_DATA');
         } catch (error) {
             console.error("Error fetching Air Data:", error);
-
             this.sendSocketNotification("AIR_RESULT", 'NO_AIR_DATA');
         }
     },
-
-
-
-    // getALERT: function () {
-    //     var self = this;
-    //     self.provider.getALERT(function (response) {
-    //         self.sendSocketNotification("ALERT_RESULT", response ? response : 'NO_ALERT_DATA');
-    //     });
-    // },
 
     getProviderFromConfig: function (config) {
         if (!this.providers[config.provider]) {
             throw new Error('Invalid config No provider selected');
         }
-        // console.log(this.providers[config.provider]);
         return require('./providers/' + this.providers[config.provider] + '.js');
-    }
+    },
+
+    moonPhaseName: moonPhaseName
 });

@@ -143,40 +143,44 @@ const provider = {
 
         // Ensure we explicitly process forecasts for today and future
         const todayStr = moment().format('YYYY-MM-DD');
-        const validForecasts = forecasts.filter(day => {
-            // BOM returns UTC dates like 2026-02-26T16:00:00Z for Perth which equals 00:00 AWST on the 27th.
-            // But the text "2026-02-26" perfectly aligns with the forecast day.
-            // By extracting just the UTC timestamp string (e.g. 2026-02-26), we get the correct forecast date representation.
-            const dayStr = moment.utc(day.date).format('YYYY-MM-DD');
-            return dayStr >= todayStr;
-        });
+        // BOM gives each day as local midnight in UTC: for Perth, Saturday 7 Nov is "2026-11-06T16:00:00Z".
+        // Read it in local time (the MagicMirror server's time zone), not UTC, otherwise every day is
+        // labelled one day early and today's forecast gets filtered out (tomorrow showed as "Today").
+        const validForecasts = forecasts.filter(day => moment(day.date).format('YYYY-MM-DD') >= todayStr);
+        const today = validForecasts[0];
+        const has = v => v !== null && v !== undefined;
 
         // Current conditions
         const current = {
-            ss: moment(validForecasts[0] && validForecasts[0].astronomical ? validForecasts[0].astronomical.sunset_time : undefined).format('HH'),
-            weather: validForecasts[0] ? validForecasts[0].short_text.replace('.', '') : "Unknown",
-            weather_f: validForecasts[0] ? validForecasts[0].extended_text : "Unknown",
-            temp_c: obs.temp ? Math.round(obs.temp) : 0,
-            temp_f: obs.temp ? Math.round(obs.temp * 9 / 5 + 32) : 0,
-            icon: validForecasts[0] && validForecasts[0].icon_descriptor ? (this.imageArray[validForecasts[0].icon_descriptor] || "clear") : "clear",
-            humidity: obs.humidity ? obs.humidity + "%" : "0%", // Module expects a string with %
-            pressure_mb: 1013, // BOM observation API doesn't return pressure by default
-            pressure_in: 29.92,
-            UV: validForecasts[0] && validForecasts[0].uv && validForecasts[0].uv.max_index ? validForecasts[0].uv.max_index : 0,
-            wind_mph: obs.wind && obs.wind.speed_kilometre ? Math.round(obs.wind.speed_kilometre * 0.621371) : 0,
-            wind_kph: obs.wind && obs.wind.speed_kilometre ? Math.round(obs.wind.speed_kilometre) : 0,
-            visibility_mi: 10,  // Not provided by BOM observation API by default
-            visibility_km: 16,
+            ss: moment(today && today.astronomical ? today.astronomical.sunset_time : undefined).format('HH'),
+            weather: today && today.short_text ? today.short_text.replace(/\.$/, '') : "Unknown",
+            weather_f: today ? today.extended_text : "Unknown",
+            temp_c: has(obs.temp) ? Math.round(obs.temp) : "-",
+            temp_f: has(obs.temp) ? Math.round(obs.temp * 9 / 5 + 32) : "-",
+            icon: today && today.icon_descriptor ? (this.imageArray[today.icon_descriptor] || "clear") : "clear",
+            humidity: has(obs.humidity) ? obs.humidity + "%" : "-", // Module expects a string with %
+            // BOM observations have no pressure or visibility. null tells the front end to show
+            // "Feels like" and "Rain" (chance today) instead of made-up values.
+            pressure_mb: null,
+            pressure_in: null,
+            visibility_mi: null,
+            visibility_km: null,
+            feels_like_c: has(obs.temp_feels_like) ? Math.round(obs.temp_feels_like) : null,
+            feels_like_f: has(obs.temp_feels_like) ? Math.round(obs.temp_feels_like * 9 / 5 + 32) : null,
+            rain_chance: today && today.rain && has(today.rain.chance) ? today.rain.chance : null,
+            UV: today && today.uv && has(today.uv.max_index) ? today.uv.max_index : 0,
+            wind_mph: obs.wind && has(obs.wind.speed_kilometre) ? Math.round(obs.wind.speed_kilometre * 0.621371) : 0,
+            wind_kph: obs.wind && has(obs.wind.speed_kilometre) ? Math.round(obs.wind.speed_kilometre) : 0,
         };
 
         // Forecast (next 4 days as expected by module)
         const forecastMap = validForecasts.slice(0, 4).map(day => {
             // BOM API sometimes omits temp_min for the current day. Fall back to now.temp_now or something sensible
             // The temp_min might be null if the minimum has already passed for the day
-            let tMinC = day.temp_min !== null ? day.temp_min : (day.now && day.now.temp_now !== null ? day.now.temp_now : 0);
-            let tMaxC = day.temp_max !== null ? day.temp_max : 0;
+            let tMinC = has(day.temp_min) ? day.temp_min : (day.now && has(day.now.temp_now) ? day.now.temp_now : 0);
+            let tMaxC = has(day.temp_max) ? day.temp_max : 0;
             return {
-                date: { weekday_short: moment.utc(day.date).format('ddd') },
+                date: { weekday_short: moment(day.date).format('ddd') },
                 high: {
                     fahrenheit: Math.round(tMaxC * 9 / 5 + 32),
                     celsius: Math.round(tMaxC)

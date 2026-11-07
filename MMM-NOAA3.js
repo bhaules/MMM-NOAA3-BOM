@@ -167,7 +167,7 @@ Module.register("MMM-NOAA3", {
         this.activeItem = 0;
         this.rotateInterval = null;
         this.uvData = null;
-        this.loaded = true;
+        this.loaded = false;
     },
 
     getUVIndexLevel: function (uv) {
@@ -216,16 +216,26 @@ Module.register("MMM-NOAA3", {
     },
 
     processAIR: function (data) {
-        this.air = data.air;
+        if (data && typeof data === "object" && data.air) {
+            this.air = data.air;
+        } else if (!this.air || this.air.aqius === undefined) {
+            this.air = { aqius: "N/A" };
+        }
     },
     processSRSS: function (data) {
+        if (!data || typeof data !== "object") {
+            return; // keep the last good sunrise/sunset
+        }
         this.srss = data;
         srss = this.srss;
     },
 
     processWeather: function (data) {
+        if (!data || typeof data !== "object" || !data.current) {
+            Log.warn("MMM-NOAA3: no weather data this time, keeping the last good data");
+            return;
+        }
         this.current = data;
-        console.log(this.current);
         var weather = this.current.current;
         icon = weather.icon;
         sunset = this.srss.sunset;
@@ -249,7 +259,6 @@ Module.register("MMM-NOAA3", {
                 hour: item.hour || (item.time ? moment(item.time).format(config.timeFormat == 12 ? "h:mm" : "H:mm") : "")
             }))
         };
-        console.log("Provider UV Data processed:", this.uvData);
     },
 
     fetchUVIndex: function () {
@@ -327,15 +336,13 @@ Module.register("MMM-NOAA3", {
 
     getDom: function () {
 
+        var wrapper = document.createElement("div");
         if (!this.loaded) {
-            wrapper.classList.add("container");
             wrapper.innerHTML = "Gathering your weather info..";
             wrapper.className = "bright small";
             return wrapper;
         }
 
-
-        var wrapper = document.createElement("div");
         var current = this.current.current;
         //console.log(current);
         var d = new Date();
@@ -370,7 +377,10 @@ Module.register("MMM-NOAA3", {
 
         var curCon = document.createElement("div");
         curCon.classList.add("img");
-        curCon.innerHTML = (n < 18 && n > 6) ? "<img src='modules/MMM-NOAA3/images/" + icon + ".png'>" : "<img src='modules/MMM-NOAA3/images/nt_" + icon + ".png'>";
+        var isDay = (this.srss && this.srss.sunrise && this.srss.sunset)
+            ? moment().isBetween(moment(this.srss.sunrise), moment(this.srss.sunset))
+            : (n < 18 && n > 6);
+        curCon.innerHTML = isDay ? "<img src='modules/MMM-NOAA3/images/" + icon + ".png'>" : "<img src='modules/MMM-NOAA3/images/nt_" + icon + ".png'>";
         wrapper.appendChild(curCon);
 
 
@@ -398,15 +408,26 @@ Module.register("MMM-NOAA3", {
 
         var top = document.createElement('div');
         top.classList.add('topshow');
-        var Baro = config.units != "metric" ? baro_in + " inHg" : baro_mb;
-        var Miles = config.units != "metric" ? visibility + " Mi" : (Math.round(visibility * 1.60934)) + " Km";
+        var head2 = this.translate("Pressure");
+        var head3 = this.translate("Visibility");
+        if (current && current.pressure_mb === null) {
+            // Provider has no pressure/visibility (BOM): show real values instead of placeholders
+            head2 = this.translate("Feels like");
+            head3 = this.translate("Rain");
+            var feels = config.units != "metric" ? current.feels_like_f : current.feels_like_c;
+            var Baro = (feels === null || feels === undefined) ? "-" : feels + "&deg;";
+            var Miles = (current.rain_chance === null || current.rain_chance === undefined) ? "-" : current.rain_chance + "%";
+        } else {
+            var Baro = config.units != "metric" ? baro_in + " inHg" : baro_mb;
+            var Miles = config.units != "metric" ? visibility + " Mi" : (Math.round(visibility * 1.60934)) + " Km";
+        }
         top.innerHTML =
             `<div class="divTable">
           <div class="divTableBody">
         <div class="divTableRow">
             <div class="divTableHead">${this.translate("Humidity")}</div>
-            <div class="divTableHead">${this.translate("Pressure")}</div>
-            <div class="divTableHead">${this.translate("Visibility")}</div>
+            <div class="divTableHead">${head2}</div>
+            <div class="divTableHead">${head3}</div>
         </div>
 		
 		<div class="divTableRow">
@@ -483,7 +504,7 @@ Module.register("MMM-NOAA3", {
       <div class="divTableRow">
        <div class="divTableCell">${level}</div>
          <div class="divTableCell">${(ev1 >= ev2 && ev1 <= ev3) ? UV + " (UV)" : '<img src=' + (this.config.moon[this.moon] || '"modules/MMM-NOAA3/images/moon/newmoon.png"') + ' height="27px" width="27px">'}</div>
-         <div class="divTableCell">${(this.config.lang != 'en') ? wind_kph : wind_mph}</div>
+         <div class="divTableCell">${(config.units == "metric") ? wind_kph + " km/h" : wind_mph + " mph"}</div>
       </div>
    </div>
 </div>`;

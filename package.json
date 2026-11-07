@@ -1,16 +1,10 @@
 {
   "name": "mmm-noaa3",
   "version": "3.1.4",
-  "description": "This repository is maintained by mumblebaj",
+  "description": "MMM-NOAA3 weather module with a native Australian BOM provider (fork of mumblebaj/MMM-NOAA3)",
   "main": "MMM-NOAA3.js",
   "dependencies": {
-    "fs": "^0.0.1-security",
-    "ip": "^1.1.5",
-    "jsdom": "^28.1.0",
     "moment": "^2.30.1",
-    "node-where": "^1.1.0",
-    "openuv": "^0.1.2",
-    "public-ip": "^5.0.0",
     "xml2js": "^0.4.19"
   },
   "scripts": {
@@ -23,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mumblebaj/MMM-NOAA3.git"
+    "url": "git+https://github.com/bhaules/MMM-NOAA3-BOM.git"
   },
   "keywords": [
     "MagicMirror²",
@@ -31,7 +25,10 @@
     "NOAA"
   ],
   "bugs": {
-    "url": "https://github.com/mumblebaj/MMM-NOAA3/issues"
+    "url": "https://github.com/bhaules/MMM-NOAA3-BOM/issues"
   },
-  "homepage": "https://github.com/mumblebaj/MMM-NOAA3#readme"
+  "homepage": "https://github.com/bhaules/MMM-NOAA3-BOM#readme",
+  "devDependencies": {
+    "jsdom": "^28.1.0"
+  }
 }
