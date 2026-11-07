@@ -114,7 +114,7 @@ zip: '329671', //MUST have valid zip Code
     },
 	```
 
-  BOM notes: BOM observations have no pressure or visibility, so this provider shows **Feels like** and today's
+  BOM notes: BOM observations have no pressure or visibility, so this provider shows **Feels** (feels-like temperature) and today's
   **Rain** chance in those two columns. The night-time moon phase is calculated locally (no API needed).
 	
 ## UpdateInterval

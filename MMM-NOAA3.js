@@ -412,7 +412,7 @@ Module.register("MMM-NOAA3", {
         var head3 = this.translate("Visibility");
         if (current && current.pressure_mb === null) {
             // Provider has no pressure/visibility (BOM): show real values instead of placeholders
-            head2 = this.translate("Feels like");
+            head2 = this.translate("Feels");
             head3 = this.translate("Rain");
             var feels = config.units != "metric" ? current.feels_like_f : current.feels_like_c;
             var Baro = (feels === null || feels === undefined) ? "-" : feels + "&deg;";
