@@ -108,7 +108,7 @@ zip: '329671', //MUST have valid zip Code
         position: 'top_left',
             config: {
             provider: "bom",   
-            geohash: "qd66d9", // 6-character geohash for your Australian location
+            geohash: "qd66hr", // 6-character geohash for your Australian location (this one is Perth CBD)
             css: "NOAA3"
 	}
     },
