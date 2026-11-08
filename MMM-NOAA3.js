@@ -490,7 +490,7 @@ Module.register("MMM-NOAA3", {
         var level = this.air.aqius;
         if (typeof level === "number") {
             // US AQI colours: Good / Moderate / Unhealthy for sensitive groups / Unhealthy / Very unhealthy / Hazardous
-            var aqiColor = level <= 50 ? "#558B2F" : level <= 100 ? "#F9A825" : level <= 150 ? "#EF6C00" : level <= 200 ? "#B71C1C" : level <= 300 ? "#6A1B9A" : "#4E342E";
+            var aqiColor = level <= 50 ? "#9CCC65" : level <= 100 ? "#FFEE58" : level <= 150 ? "#FFA726" : level <= 200 ? "#EF5350" : level <= 300 ? "#BA68C8" : "#A1887F"; // bright enough to read on black
             level = '<span style="color:' + aqiColor + '">' + level + '</span>';
         }
         /*this.air.aqius  > 0 && this.air.aqius <= 50 ? this.air.aqius + "<span class='CellComment'>" + this.translate('Excellent') + "</span>": 
