@@ -115,7 +115,8 @@ zip: '329671', //MUST have valid zip Code
 	```
 
   BOM notes: BOM observations have no pressure or visibility, so this provider shows **Feels** (feels-like temperature) and today's
-  **Rain** chance in those two columns. The night-time moon phase is calculated locally (no API needed).
+  **Rain** chance in those two columns. The night-time moon phase is calculated locally (no API needed). AQI (US scale) comes from Open-Meteo's free
+  air-quality API (modelled data, no key), using `userlat`/`userlon` if set, else the geohash's location.
 	
 ## UpdateInterval
 

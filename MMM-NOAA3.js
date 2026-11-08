@@ -488,6 +488,11 @@ Module.register("MMM-NOAA3", {
         // console.log("Now :"+ev1 + " Rise: "+ ev2+" Set:  "+ev3);	
         var lastDiv = document.createElement('div');
         var level = this.air.aqius;
+        if (typeof level === "number") {
+            // US AQI colours: Good / Moderate / Unhealthy for sensitive groups / Unhealthy / Very unhealthy / Hazardous
+            var aqiColor = level <= 50 ? "#558B2F" : level <= 100 ? "#F9A825" : level <= 150 ? "#EF6C00" : level <= 200 ? "#B71C1C" : level <= 300 ? "#6A1B9A" : "#4E342E";
+            level = '<span style="color:' + aqiColor + '">' + level + '</span>';
+        }
         /*this.air.aqius  > 0 && this.air.aqius <= 50 ? this.air.aqius + "<span class='CellComment'>" + this.translate('Excellent') + "</span>": 
         this.air.aqius > 50 && this.air.aqius <= 100 ? this.air.aqius + "<span class='CellComment'>" + this.translate('Good') + "</span>" :
         this.air.aqius > 100 && this.air.aqius <= 150 ? this.air.aqius + "<span class='CellComment'>" + this.translate('Lightly Polluted') + "</span>":

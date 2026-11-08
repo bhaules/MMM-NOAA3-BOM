@@ -106,9 +106,26 @@ const provider = {
     },
 
     fetchAirQuality: async function () {
-        // BOM API doesn't provide Air Quality on this endpoint directly.
-        // We supply a default structure so MMM-NOAA3 doesn't break trying to read `air.aqius`
-        return { air: { aqius: "N/A", pollution: 0 } };
+        // BOM has no air quality data. Use Open-Meteo's free air-quality API (no key; modelled
+        // CAMS data, not a measuring station). Location: userlat/userlon, else the BOM geohash's.
+        try {
+            let lat = this.config.userlat, lon = this.config.userlon;
+            if (!lat || !lon) {
+                if (!this.location && this.geohash) {
+                    const loc = await httpsGet(`https://api.weather.bom.gov.au/v1/locations/${this.geohash}`);
+                    this.location = loc && loc.data ? { lat: loc.data.latitude, lon: loc.data.longitude } : null;
+                }
+                if (!this.location) return { air: { aqius: "N/A", pollution: 0 } };
+                lat = this.location.lat; lon = this.location.lon;
+            }
+            const aq = await httpsGet(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5`);
+            const c = aq && aq.current;
+            if (!c || typeof c.us_aqi !== 'number') return { air: { aqius: "N/A", pollution: 0 } };
+            return { air: { aqius: Math.round(c.us_aqi), pm2_5: c.pm2_5, pollution: 0 } };
+        } catch (error) {
+            console.log("Air quality (Open-Meteo) Error:", error.message);
+            return { air: { aqius: "N/A", pollution: 0 } };
+        }
     },
 
     fetchSunriseSunset: async function () {
