@@ -368,6 +368,7 @@ Module.register("MMM-NOAA3", {
         //console.log('this is from NOAA3 '+weather);
         var cweat = document.createElement("div");
         cweat.classList.add("small", "bright", "floatl");
+        cweat.style.maxWidth = "55%"; // long text ("Windy. Mostly sunny") wraps instead of pushing the icon off screen
         if (this.config.provider === 'openweather' && this.config.lang != 'en') {
             cweat.innerHTML = weather_f + "<br>";
         } else {
@@ -578,7 +579,10 @@ Module.register("MMM-NOAA3", {
                 var temper = document.createElement("td");
                 temper.setAttribute("colspan", "1");
                 temper.classList.add("xsmall", "bright");
-                temper.innerHTML = (config.units != "metric") ? Math.round(noaa.high.fahrenheit) + "/" + Math.round(noaa.low.fahrenheit) : Math.round(noaa.high.celsius) + "/" + Math.round(noaa.low.celsius);
+                var t = (config.units != "metric") ? noaa.high.fahrenheit : noaa.high.celsius;
+                var l = (config.units != "metric") ? noaa.low.fahrenheit : noaa.low.celsius;
+                var fmt = v => (v === null || v === undefined || isNaN(v)) ? "&ndash;" : Math.round(v);
+                temper.innerHTML = fmt(t) + "/" + fmt(l);
                 tempRow.appendChild(temper);
                 ForecastTable.appendChild(tempRow);
             }

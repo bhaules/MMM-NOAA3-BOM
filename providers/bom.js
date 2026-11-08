@@ -1,5 +1,17 @@
 const moment = require('moment');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
+
+// BOM drops today's minimum once it has passed (temp_min: null), but earlier forecasts had it.
+// Remember each day's minimum so "Today" can still show it (kept in a file to survive restarts).
+const MIN_CACHE_FILE = path.join(__dirname, '..', '.bom-min-cache.json');
+function loadMinCache() {
+    try { return JSON.parse(fs.readFileSync(MIN_CACHE_FILE, 'utf8')); } catch (e) { return {}; }
+}
+function saveMinCache(cache) {
+    try { fs.writeFileSync(MIN_CACHE_FILE, JSON.stringify(cache)); } catch (e) { /* not critical */ }
+}
 
 function httpsGet(url) {
     return new Promise((resolve, reject) => {
@@ -173,21 +185,31 @@ const provider = {
             wind_kph: obs.wind && has(obs.wind.speed_kilometre) ? Math.round(obs.wind.speed_kilometre) : 0,
         };
 
+        // Remember known minimums by local date; drop dates before today
+        const minCache = loadMinCache();
+        Object.keys(minCache).forEach(d => { if (d < todayStr) delete minCache[d]; });
+        validForecasts.forEach(day => {
+            if (has(day.temp_min)) minCache[moment(day.date).format('YYYY-MM-DD')] = day.temp_min;
+        });
+        saveMinCache(minCache);
+
         // Forecast (next 4 days as expected by module)
         const forecastMap = validForecasts.slice(0, 4).map(day => {
-            // BOM API sometimes omits temp_min for the current day. Fall back to now.temp_now or something sensible
-            // The temp_min might be null if the minimum has already passed for the day
-            let tMinC = has(day.temp_min) ? day.temp_min : (day.now && has(day.now.temp_now) ? day.now.temp_now : 0);
-            let tMaxC = has(day.temp_max) ? day.temp_max : 0;
+            // temp_min is null once today's minimum has passed: use the remembered value, else no value.
+            // (Don't use day.now.temp_now: during the day that is the maximum, which showed e.g. 24/24.)
+            const dayKey = moment(day.date).format('YYYY-MM-DD');
+            let tMinC = has(day.temp_min) ? day.temp_min : (has(minCache[dayKey]) ? minCache[dayKey] : null);
+            let tMaxC = has(day.temp_max) ? day.temp_max : null;
+            const toF = c => c === null ? null : Math.round(c * 9 / 5 + 32);
             return {
                 date: { weekday_short: moment(day.date).format('ddd') },
                 high: {
-                    fahrenheit: Math.round(tMaxC * 9 / 5 + 32),
-                    celsius: Math.round(tMaxC)
+                    fahrenheit: toF(tMaxC),
+                    celsius: tMaxC === null ? null : Math.round(tMaxC)
                 },
                 low: {
-                    fahrenheit: Math.round(tMinC * 9 / 5 + 32),
-                    celsius: Math.round(tMinC)
+                    fahrenheit: toF(tMinC),
+                    celsius: tMinC === null ? null : Math.round(tMinC)
                 },
                 desc: day.short_text,
                 icon: this.imageArray[day.icon_descriptor] || "unknown"
