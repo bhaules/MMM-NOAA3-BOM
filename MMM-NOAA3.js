@@ -381,7 +381,9 @@ Module.register("MMM-NOAA3", {
         var isDay = (this.srss && this.srss.sunrise && this.srss.sunset)
             ? moment().isBetween(moment(this.srss.sunrise), moment(this.srss.sunset))
             : (n < 18 && n > 6);
-        curCon.innerHTML = isDay ? "<img src='modules/MMM-NOAA3/images/" + icon + ".png'>" : "<img src='modules/MMM-NOAA3/images/nt_" + icon + ".png'>";
+        // Icons are 175px wide; at that size they ran off the screen next to longer text. 115px fits.
+        var iconStyle = " style='width:115px;height:auto'";
+        curCon.innerHTML = isDay ? "<img src='modules/MMM-NOAA3/images/" + icon + ".png'" + iconStyle + ">" : "<img src='modules/MMM-NOAA3/images/nt_" + icon + ".png'" + iconStyle + ">";
         wrapper.appendChild(curCon);
 
 
